@@ -1,18 +1,21 @@
-name: CI/CD for Full-Stack App with SonarQube
+name: CI/CD for Full-Stack App
 
 on:
   push:
     branches:
       - main
+  pull_request:
+    types: [opened, synchronize, reopened]
 
 jobs:
   build-and-push:
+    name: Build & Push Docker Images
     runs-on: ubuntu-latest
     steps:
-      - name: 📦 Checkout Code
+      - name: 📦 Checkout Repository
         uses: actions/checkout@v4
 
-      - name: 🔐 Login to Docker Hub
+      - name: 🔐 Docker Login
         run: echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_HUB }}" --password-stdin
 
       - name: 🐳 Build Server Image
@@ -28,20 +31,21 @@ jobs:
         run: docker push cloudansh/fullstack-client:latest
 
   sonar-analysis:
+    name: SonarQube Scan (Node.js Server)
     needs: build-and-push
     runs-on: ubuntu-latest
     steps:
-      - name: 📦 Checkout Code
+      - name: 📦 Checkout Repository
         uses: actions/checkout@v4
 
-      - name: ⚙️ Install SonarQube Scanner
+      - name: ⚙️ Install SonarScanner
         run: |
           wget https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/sonar-scanner-cli-5.0.1.3006-linux.zip
           unzip sonar-scanner-cli-5.0.1.3006-linux.zip
           mv sonar-scanner-cli-5.0.1.3006-linux sonar-scanner
           echo "$PWD/sonar-scanner/bin" >> $GITHUB_PATH
 
-      - name: 🧪 Run SonarQube Analysis on Server
+      - name: 🔍 SonarQube Analysis (Server)
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         run: |
@@ -52,10 +56,11 @@ jobs:
             -Dsonar.login=${{ secrets.SONAR_TOKEN }}
 
   deploy:
+    name: Deploy Containers
     needs: build-and-push
     runs-on: ubuntu-latest
     steps:
-      - name: 🔐 Login to Docker Hub
+      - name: 🔐 Docker Login
         run: echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_HUB }}" --password-stdin
 
       - name: ⬇️ Pull Server Image
@@ -64,20 +69,21 @@ jobs:
       - name: ⬇️ Pull Client Image
         run: docker pull cloudansh/fullstack-client:latest
 
-      - name: 🧹 Remove Old Containers (if exist)
+      - name: 🧹 Stop Old Containers
         run: |
           docker rm -f fullstack-server || true
           docker rm -f fullstack-client || true
 
-      - name: 🚀 Run New Server Container
+      - name: 🚀 Run Server
         run: |
           docker run -d -p 5000:5000 \
             --name fullstack-server \
-            -e MONGO_PASSWORD="${{ secrets.MONGO_PASSWORD }}" \
+            -e NODE_ENV=production \
             cloudansh/fullstack-server:latest
 
-      - name: 🚀 Run New Client Container
+      - name: 🚀 Run Client
         run: |
           docker run -d -p 3000:3000 \
             --name fullstack-client \
             cloudansh/fullstack-client:latest
+
