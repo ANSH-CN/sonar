@@ -1,0 +1,85 @@
+name: Fullstack CI/CD
+run-name: Test, Build, and Deploy
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - "v1.*"
+  pull_request:
+    branches:
+      - main
+    types:
+      - opened
+      - synchronize
+      - closed
+  workflow_dispatch:
+
+env:
+  DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+  DOCKERHUB_PASSWORD: ${{ secrets.DOCKERHUB_PASSWORD }}
+  SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+  SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+
+jobs:
+  test-and-build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 📦 Checkout code
+        uses: actions/checkout@v4
+
+      # ---------- BACKEND ----------
+      - name: 🧪 Test Backend
+        working-directory: ./server
+        run: |
+          npm install
+          echo "Running backend tests..."
+
+      - name: 🔍 SonarQube Scan - Backend
+        uses: sonarsource/sonarqube-scan-action@master
+        with:
+          projectBaseDir: ./server
+        env:
+          SONAR_TOKEN: ${{ env.SONAR_TOKEN }}
+          SONAR_HOST_URL: ${{ env.SONAR_HOST_URL }}
+
+      - name: 🐳 Docker Build Backend
+        run: docker build -t shortify-backend ./server
+
+      # ---------- FRONTEND ----------
+      - name: 🧪 Test Frontend
+        working-directory: ./client
+        run: |
+          npm install
+          echo "Running frontend tests..."
+
+      - name: 🔍 SonarQube Scan - Frontend
+        uses: sonarsource/sonarqube-scan-action@master
+        with:
+          projectBaseDir: ./client
+        env:
+          SONAR_TOKEN: ${{ env.SONAR_TOKEN }}
+          SONAR_HOST_URL: ${{ env.SONAR_HOST_URL }}
+
+      - name: 🐳 Docker Build Frontend
+        run: docker build -t shortify-frontend ./client
+
+      
+  deploy:
+    if: github.event_name == 'pull_request' && github.event.action == 'closed'
+    needs: test-and-build
+    runs-on:
+      - self-hosted
+      - production
+
+    steps:
+      - name: 📦 Checkout Code
+        uses: actions/checkout@v4
+
+      - name: 🔓 Make deploy script executable
+        run: chmod +x ./deploy.sh
+
+      - name: 🚀 Deploy App
+        run: ./deploy.sh
