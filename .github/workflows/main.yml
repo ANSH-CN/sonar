@@ -1,4 +1,4 @@
-name: Fullstack CI/CD with SonarQube
+name: CI/CD for Full-Stack App with SonarQube
 
 on:
   push:
@@ -15,23 +15,21 @@ jobs:
       - name: 🔐 Login to Docker Hub
         run: echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_HUB }}" --password-stdin
 
-      # --- Build & Push Backend ---
-      - name: 🐳 Build Backend Docker Image
-        run: docker build -t cloudansh/nodejs-backend:latest ./server
+      - name: 🐳 Build Server Image
+        run: docker build -t cloudansh/fullstack-server:latest ./server
 
-      - name: 📤 Push Backend Docker Image
-        run: docker push cloudansh/nodejs-backend:latest
+      - name: 🐳 Build Client Image
+        run: docker build -t cloudansh/fullstack-client:latest ./client
 
-      # --- Build & Push Frontend ---
-      - name: 🐳 Build Frontend Docker Image
-        run: docker build -t cloudansh/nodejs-frontend:latest ./client
+      - name: 📤 Push Server Image
+        run: docker push cloudansh/fullstack-server:latest
 
-      - name: 📤 Push Frontend Docker Image
-        run: docker push cloudansh/nodejs-frontend:latest
+      - name: 📤 Push Client Image
+        run: docker push cloudansh/fullstack-client:latest
 
   sonar-analysis:
-    runs-on: ubuntu-latest
     needs: build-and-push
+    runs-on: ubuntu-latest
     steps:
       - name: 📦 Checkout Code
         uses: actions/checkout@v4
@@ -43,25 +41,13 @@ jobs:
           mv sonar-scanner-cli-5.0.1.3006-linux sonar-scanner
           echo "$PWD/sonar-scanner/bin" >> $GITHUB_PATH
 
-      - name: 🧪 Run SonarQube Analysis - Backend
-        working-directory: ./server
+      - name: 🧪 Run SonarQube Analysis on Server
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         run: |
           sonar-scanner \
-            -Dsonar.projectKey=backend_sonar \
-            -Dsonar.sources=. \
-            -Dsonar.host.url=${{ secrets.SONAR_HOST_URL }} \
-            -Dsonar.login=${{ secrets.SONAR_TOKEN }}
-
-      - name: 🧪 Run SonarQube Analysis - Frontend
-        working-directory: ./client
-        env:
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-        run: |
-          sonar-scanner \
-            -Dsonar.projectKey=frontend_sonar \
-            -Dsonar.sources=. \
+            -Dsonar.projectKey=fullstack-server \
+            -Dsonar.sources=./server \
             -Dsonar.host.url=${{ secrets.SONAR_HOST_URL }} \
             -Dsonar.login=${{ secrets.SONAR_TOKEN }}
 
@@ -72,30 +58,26 @@ jobs:
       - name: 🔐 Login to Docker Hub
         run: echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_HUB }}" --password-stdin
 
-      # --- Backend ---
-      - name: ⬇️ Pull Backend Image
-        run: docker pull cloudansh/nodejs-backend:latest
+      - name: ⬇️ Pull Server Image
+        run: docker pull cloudansh/fullstack-server:latest
 
-      - name: 🧹 Remove Old Backend Container
-        run: docker rm -f backend-container || true
+      - name: ⬇️ Pull Client Image
+        run: docker pull cloudansh/fullstack-client:latest
 
-      - name: 🚀 Run Backend Container
+      - name: 🧹 Remove Old Containers (if exist)
         run: |
-          docker run -d -p 4000:4000 \
-            --name backend-container \
+          docker rm -f fullstack-server || true
+          docker rm -f fullstack-client || true
+
+      - name: 🚀 Run New Server Container
+        run: |
+          docker run -d -p 5000:5000 \
+            --name fullstack-server \
             -e MONGO_PASSWORD="${{ secrets.MONGO_PASSWORD }}" \
-            cloudansh/nodejs-backend:latest
+            cloudansh/fullstack-server:latest
 
-      # --- Frontend ---
-      - name: ⬇️ Pull Frontend Image
-        run: docker pull cloudansh/nodejs-frontend:latest
-
-      - name: 🧹 Remove Old Frontend Container
-        run: docker rm -f frontend-container || true
-
-      - name: 🚀 Run Frontend Container
+      - name: 🚀 Run New Client Container
         run: |
-          docker run -d -p 80:80 \
-            --name frontend-container \
-            cloudansh/nodejs-frontend:latest
-
+          docker run -d -p 3000:3000 \
+            --name fullstack-client \
+            cloudansh/fullstack-client:latest
