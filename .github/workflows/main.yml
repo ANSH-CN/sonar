@@ -46,7 +46,7 @@ jobs:
           SONAR_HOST_URL: ${{ env.SONAR_HOST_URL }}
 
       - name: 🐳 Docker Build Backend
-        run: docker build -t shortify-backend ./server
+        run: docker build -t shortify-backend/cloudansh
 
       # ---------- FRONTEND ----------
       - name: 🧪 Test Frontend
@@ -64,7 +64,7 @@ jobs:
           SONAR_HOST_URL: ${{ env.SONAR_HOST_URL }}
 
       - name: 🐳 Docker Build Frontend
-        run: docker build -t shortify-frontend ./client
+        run: docker build -t shortify-frontend/cloudansh
 
       
   deploy:
