@@ -1,4 +1,4 @@
-name: Shortify Ci
+name: Shortify CI
 run-name: Test and Deploy
 
 on:
@@ -18,7 +18,7 @@ on:
 
 jobs:
   Test:
-    runs-on: [ubuntu-latest]
+    runs-on: ubuntu-latest
     strategy:
       matrix:
         node-version: [18.x]
@@ -26,26 +26,38 @@ jobs:
     defaults:
       run:
         working-directory: ./server
+
     steps:
-      - name: checkout the repo
+      - name: 📦 Checkout the repository
         uses: actions/checkout@v4
-      - name: check the files
+
+      - name: 📁 List files
         run: |
           pwd
-          ls 
-      - name: setup nodejs ${{matrix.node-version}}
+          ls
+
+      - name: 🔧 Setup Node.js ${{ matrix.node-version }}
         uses: actions/setup-node@v4
         with:
-          node-version: ${{matrix.node-version}}
+          node-version: ${{ matrix.node-version }}
 
-      - name: Install dependecies
-        shell: bash
-        run: |
-          npm install
+      - name: 📥 Install dependencies
+        run: npm install
 
-      - name: run tests
+      - name: 🧪 Run tests
+        run: echo "Running your tests.."
+
+      - name: 🐳 Docker Build
         run: |
-          echo "Running your tests.."
+          docker build -t shortify-server .
+
+      - name: 🔍 SonarQube Scan
+        uses: sonarsource/sonarqube-scan-action@master
+        with:
+          projectBaseDir: ./server
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
 
   Deploy:
     if: github.event_name == 'pull_request' && github.event.action == 'closed'
@@ -55,15 +67,11 @@ jobs:
       - production
 
     steps:
-      - name: checkout the repo
+      - name: 📦 Checkout the repository
         uses: actions/checkout@v4
 
-      - name: change file permissions
-        shell: bash
-        run: |
-          sudo chmod +x ./deploy.sh
+      - name: 🔓 Change file permissions
+        run: chmod +x ./deploy.sh
 
-      - name: deploy latest updates
-        shell: bash
-        run: |
-          ./deploy.sh
+      - name: 🚀 Deploy latest updates
+        run: ./deploy.sh
